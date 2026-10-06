@@ -16,7 +16,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const recording = getRecordingById(id);
+    const recording = await getRecordingById(id);
     if (!recording) {
       return NextResponse.json(
         { success: false, error: "Recording not found" },
@@ -43,7 +43,7 @@ export async function POST(
     }
 
     // Set status to processing
-    updateRecording(id, { status: "processing", error_message: null });
+    await updateRecording(id, { status: "processing", error_message: null });
 
     // Step 1: Transcription (if missing or if previous attempt failed at STT)
     let transcript = recording.transcript;
@@ -52,10 +52,10 @@ export async function POST(
         console.log(`Retrying transcription for ${id}...`);
         const mimeType = recording.audio_file_path.endsWith(".mp4") ? "audio/mp4" : "audio/webm";
         transcript = await transcribeAudioWithGemini(audioFilePath, mimeType);
-        updateRecording(id, { transcript });
+        await updateRecording(id, { transcript });
       } catch (sttErr: any) {
         console.error("Retry STT failed:", sttErr);
-        const updated = updateRecording(id, {
+        const updated = await updateRecording(id, {
           status: "failed_transcription",
           error_message: `Retry transcription error: ${sttErr.message}`,
         });
@@ -73,7 +73,7 @@ export async function POST(
       const summaryObj = await summarizeTranscriptWithGemini(transcript);
       const summaryJson = JSON.stringify(summaryObj);
 
-      const updated = updateRecording(id, {
+      const updated = await updateRecording(id, {
         summary: summaryJson,
         status: "completed",
         error_message: null,
@@ -85,7 +85,7 @@ export async function POST(
       });
     } catch (sumErr: any) {
       console.error("Retry summary failed:", sumErr);
-      const updated = updateRecording(id, {
+      const updated = await updateRecording(id, {
         status: "failed_summary",
         transcript,
         error_message: `Retry summary error: ${sumErr.message}`,

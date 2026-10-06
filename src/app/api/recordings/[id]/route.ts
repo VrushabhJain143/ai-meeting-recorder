@@ -11,7 +11,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const recording = getRecordingById(id);
+    const recording = await getRecordingById(id);
     if (!recording) {
       return NextResponse.json(
         { success: false, error: "Recording not found" },
@@ -33,7 +33,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const recording = getRecordingById(id);
+    const recording = await getRecordingById(id);
     if (!recording) {
       return NextResponse.json(
         { success: false, error: "Recording not found" },
@@ -51,7 +51,7 @@ export async function DELETE(
       }
     }
 
-    deleteRecording(id);
+    await deleteRecording(id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json(

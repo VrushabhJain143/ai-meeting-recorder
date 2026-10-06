@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const recordings = getAllRecordings();
+    const recordings = await getAllRecordings();
     return NextResponse.json({ success: true, recordings });
   } catch (error: any) {
     console.error("Error fetching recordings:", error);
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     console.log(`✓ Audio safely saved: ${filePath} (${buffer.length} bytes)`);
 
     // Step 3: Insert initial record in Database
-    const initialRecording = createRecording({
+    const initialRecording = await createRecording({
       id: recordingId,
       duration,
       audio_file_path: filename,
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     if (!isGeminiConfigured()) {
       const errMsg =
         "GEMINI_API_KEY is not configured in .env.local. Audio was saved safely. Add your API key and click Retry to process.";
-      const updated = updateRecording(recordingId, {
+      const updated = await updateRecording(recordingId, {
         status: "failed_transcription",
         error_message: errMsg,
       });
@@ -90,14 +90,14 @@ export async function POST(req: NextRequest) {
     try {
       console.log(`Transcribing audio for ${recordingId}...`);
       transcript = await transcribeAudioWithGemini(filePath, audioFile.type || "audio/webm");
-      updateRecording(recordingId, {
+      await updateRecording(recordingId, {
         transcript,
         status: "processing", // Still processing summary
       });
       console.log(`✓ Transcript generated for ${recordingId}`);
     } catch (sttError: any) {
       console.error("STT Error:", sttError);
-      const updated = updateRecording(recordingId, {
+      const updated = await updateRecording(recordingId, {
         status: "failed_transcription",
         error_message: `Transcription error: ${sttError.message}`,
       });
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
       const summaryObj = await summarizeTranscriptWithGemini(transcript);
       const summaryJson = JSON.stringify(summaryObj);
 
-      const finalRecording = updateRecording(recordingId, {
+      const finalRecording = await updateRecording(recordingId, {
         summary: summaryJson,
         status: "completed",
         error_message: null,
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
       });
     } catch (sumError: any) {
       console.error("Summarization Error:", sumError);
-      const updated = updateRecording(recordingId, {
+      const updated = await updateRecording(recordingId, {
         status: "failed_summary",
         transcript, // keep the transcript!
         error_message: `Summary error: ${sumError.message}`,
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Upload error:", error);
     if (recordingId) {
-      updateRecording(recordingId, {
+      await updateRecording(recordingId, {
         status: "failed_transcription",
         error_message: error.message || "Failed to process audio",
       });
