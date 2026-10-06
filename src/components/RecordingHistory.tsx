@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Recording } from "@/lib/db";
 import { TranscriptModal } from "./TranscriptModal";
+import { DeleteConfirmModal } from "./DeleteConfirmModal";
 
 interface RecordingHistoryProps {
   recordings: Recording[];
@@ -36,6 +37,7 @@ export function RecordingHistory({
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [activeAudio, setActiveAudio] = useState<HTMLAudioElement | null>(null);
   const [modalTranscript, setModalTranscript] = useState<{ id: string; text: string } | null>(null);
+  const [deleteModalRecording, setDeleteModalRecording] = useState<Recording | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const formatDuration = (secs: number) => {
@@ -78,11 +80,13 @@ export function RecordingHistory({
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this meeting recording?")) return;
+  const handleConfirmDelete = async () => {
+    if (!deleteModalRecording) return;
+    const id = deleteModalRecording.id;
     setDeletingId(id);
     try {
       await onDelete(id);
+      setDeleteModalRecording(null);
     } finally {
       setDeletingId(null);
     }
@@ -258,7 +262,7 @@ export function RecordingHistory({
 
                 {/* Delete button */}
                 <button
-                  onClick={() => handleDelete(rec.id)}
+                  onClick={() => setDeleteModalRecording(rec)}
                   disabled={isThisDeleting}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors ml-1"
                   title="Delete Recording"
@@ -282,6 +286,17 @@ export function RecordingHistory({
           onClose={() => setModalTranscript(null)}
           transcript={modalTranscript.text}
           recordingId={modalTranscript.id}
+        />
+      )}
+
+      {/* Delete Confirmation Modal (Popup same like view transcript) */}
+      {deleteModalRecording && (
+        <DeleteConfirmModal
+          isOpen={Boolean(deleteModalRecording)}
+          onClose={() => !deletingId && setDeleteModalRecording(null)}
+          onConfirm={handleConfirmDelete}
+          recordingId={deleteModalRecording.id}
+          isDeleting={Boolean(deletingId)}
         />
       )}
     </div>
