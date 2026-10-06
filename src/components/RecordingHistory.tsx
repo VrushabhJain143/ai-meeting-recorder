@@ -9,11 +9,13 @@ import {
   FileText,
   Sparkles,
   RotateCcw,
+  RotateCw,
   Trash2,
   AlertTriangle,
   CheckCircle2,
   ChevronRight,
-  Loader2
+  Loader2,
+  X
 } from "lucide-react";
 import { Recording } from "@/lib/db";
 import { TranscriptModal } from "./TranscriptModal";
@@ -34,13 +36,17 @@ export function RecordingHistory({
   onDelete,
   retryingId,
 }: RecordingHistoryProps) {
-  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [activeAudio, setActiveAudio] = useState<HTMLAudioElement | null>(null);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [audioDuration, setAudioDuration] = useState<number>(0);
   const [modalTranscript, setModalTranscript] = useState<{ id: string; text: string } | null>(null);
   const [deleteModalRecording, setDeleteModalRecording] = useState<Recording | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const formatDuration = (secs: number) => {
+    if (!secs || isNaN(secs) || secs < 0) return "00:00";
     const mins = Math.floor(secs / 60);
     const rem = Math.floor(secs % 60);
     return `${mins.toString().padStart(2, "0")}:${rem.toString().padStart(2, "0")}`;
@@ -61,23 +67,72 @@ export function RecordingHistory({
     }
   };
 
-  const handleTogglePlay = (id: string, audioFile: string) => {
-    if (playingId === id) {
-      activeAudio?.pause();
-      setPlayingId(null);
+  const handleTogglePlay = (id: string, audioFile: string, recDuration: number) => {
+    if (activePlayerId === id) {
+      if (isPlaying) {
+        activeAudio?.pause();
+        setIsPlaying(false);
+      } else {
+        activeAudio?.play().catch((err) => console.error("Audio playback error:", err));
+        setIsPlaying(true);
+      }
     } else {
       if (activeAudio) {
         activeAudio.pause();
       }
       const audio = new Audio(`/api/audio/${audioFile}`);
-      audio.onended = () => setPlayingId(null);
-      audio.onpause = () => {
-        if (playingId === id) setPlayingId(null);
+      setCurrentTime(0);
+      setAudioDuration(recDuration || 0);
+
+      audio.ontimeupdate = () => {
+        setCurrentTime(audio.currentTime);
       };
-      audio.play();
+      audio.onloadedmetadata = () => {
+        if (audio.duration && !isNaN(audio.duration)) {
+          setAudioDuration(audio.duration);
+        }
+      };
+      audio.onended = () => {
+        setIsPlaying(false);
+        setCurrentTime(0);
+      };
+      audio.onpause = () => {
+        setIsPlaying(false);
+      };
+      audio.onplay = () => {
+        setIsPlaying(true);
+      };
+
+      audio.play().catch((err) => console.error("Audio playback error:", err));
       setActiveAudio(audio);
-      setPlayingId(id);
+      setActivePlayerId(id);
+      setIsPlaying(true);
     }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    setCurrentTime(time);
+    if (activeAudio) {
+      activeAudio.currentTime = time;
+    }
+  };
+
+  const handleSkip = (seconds: number) => {
+    if (!activeAudio) return;
+    const maxDur = audioDuration || activeAudio.duration || 999999;
+    const target = Math.min(Math.max(0, activeAudio.currentTime + seconds), maxDur);
+    activeAudio.currentTime = target;
+    setCurrentTime(target);
+  };
+
+  const handleClosePlayer = () => {
+    if (activeAudio) {
+      activeAudio.pause();
+    }
+    setActivePlayerId(null);
+    setIsPlaying(false);
+    setCurrentTime(0);
   };
 
   const handleConfirmDelete = async () => {
@@ -118,71 +173,77 @@ export function RecordingHistory({
 
       <div className="space-y-3">
         {recordings.map((rec) => {
-          const isPlaying = playingId === rec.id;
+          const isCurrentActive = activePlayerId === rec.id;
+          const isThisPlaying = isCurrentActive && isPlaying;
           const isThisRetrying = retryingId === rec.id;
           const isThisDeleting = deletingId === rec.id;
 
           return (
             <div
               key={rec.id}
-              className="bg-white rounded-2xl p-5 border border-slate-200/80 hover:border-slate-300 shadow-sm transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+              className={`bg-white rounded-2xl border shadow-sm transition-all overflow-hidden ${
+                isCurrentActive
+                  ? "border-indigo-300 ring-2 ring-indigo-50"
+                  : "border-slate-200/80 hover:border-slate-300"
+              }`}
             >
-              {/* Left Details */}
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2.5">
-                  <span className="text-sm font-bold text-slate-800">
-                    {formatDate(rec.created_at)}
-                  </span>
+              <div className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                {/* Left Details */}
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2.5">
+                    <span className="text-sm font-bold text-slate-800">
+                      {formatDate(rec.created_at)}
+                    </span>
 
-                  {rec.status === "completed" && (
-                    <span className="inline-flex items-center text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      <CheckCircle2 className="w-3 h-3 mr-1" /> Ready
+                    {rec.status === "completed" && (
+                      <span className="inline-flex items-center text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        <CheckCircle2 className="w-3 h-3 mr-1" /> Ready
+                      </span>
+                    )}
+                    {rec.status === "processing" && (
+                      <span className="inline-flex items-center text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Processing
+                      </span>
+                    )}
+                    {(rec.status === "failed_transcription" || rec.status === "failed_summary") && (
+                      <span className="inline-flex items-center text-[11px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                        <AlertTriangle className="w-3 h-3 mr-1" /> Needs Retry
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-xs text-slate-500 flex items-center space-x-3">
+                    <span className="font-medium text-slate-700">
+                      Duration: {formatDuration(rec.duration)}
                     </span>
-                  )}
-                  {rec.status === "processing" && (
-                    <span className="inline-flex items-center text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Processing
+                    <span>•</span>
+                    <span className="font-mono text-[11px] text-slate-400">
+                      {rec.id}
                     </span>
-                  )}
-                  {(rec.status === "failed_transcription" || rec.status === "failed_summary") && (
-                    <span className="inline-flex items-center text-[11px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-                      <AlertTriangle className="w-3 h-3 mr-1" /> Needs Retry
-                    </span>
-                  )}
+                  </div>
                 </div>
 
-                <div className="text-xs text-slate-500 flex items-center space-x-3">
-                  <span className="font-medium text-slate-700">
-                    Duration: {formatDuration(rec.duration)}
-                  </span>
-                  <span>•</span>
-                  <span className="font-mono text-[11px] text-slate-400">
-                    {rec.id}
-                  </span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-start md:justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
-                {/* PLAY */}
-                <button
-                  onClick={() => handleTogglePlay(rec.id, rec.audio_file_path)}
-                  className={`inline-flex items-center px-3.5 py-1.5 text-xs font-bold rounded-xl transition-colors ${
-                    isPlaying
-                      ? "bg-amber-100 text-amber-900 hover:bg-amber-200"
-                      : "bg-slate-100 text-slate-800 hover:bg-slate-200"
-                  }`}
-                >
-                  {isPlaying ? (
-                    <>
-                      <Pause className="w-3.5 h-3.5 mr-1 fill-current" /> PAUSE
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-3.5 h-3.5 mr-1 fill-current ml-0.5" /> PLAY
-                    </>
-                  )}
-                </button>
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-start md:justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                  {/* PLAY */}
+                  <button
+                    onClick={() => handleTogglePlay(rec.id, rec.audio_file_path, rec.duration)}
+                    className={`inline-flex items-center px-3.5 py-1.5 text-xs font-bold rounded-xl transition-colors ${
+                      isThisPlaying
+                        ? "bg-amber-100 text-amber-900 hover:bg-amber-200"
+                        : "bg-slate-100 text-slate-800 hover:bg-slate-200"
+                    }`}
+                  >
+                    {isThisPlaying ? (
+                      <>
+                        <Pause className="w-3.5 h-3.5 mr-1 fill-current" /> PAUSE
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5 mr-1 fill-current ml-0.5" /> PLAY
+                      </>
+                    )}
+                  </button>
 
                 {/* Score / Rating & Percentage (Between Play and View Summary) */}
                 {(() => {
@@ -275,7 +336,58 @@ export function RecordingHistory({
                 </button>
               </div>
             </div>
-          );
+
+            {/* Inline Audio Player Controller & Scrubber (Option A) */}
+            {isCurrentActive && (
+              <div className="px-5 py-3.5 bg-slate-900 text-white border-t border-slate-800 flex flex-col sm:flex-row items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="flex items-center space-x-2 shrink-0">
+                  <button
+                    onClick={() => handleSkip(-5)}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold flex items-center transition-colors"
+                    title="Rewind 5 seconds"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 mr-1" /> -5s
+                  </button>
+
+                  <button
+                    onClick={() => handleSkip(5)}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold flex items-center transition-colors"
+                    title="Forward 5 seconds"
+                  >
+                    +5s <RotateCw className="w-3.5 h-3.5 ml-1" />
+                  </button>
+                </div>
+
+                {/* Scrubber slider & live time */}
+                <div className="flex-1 w-full flex items-center space-x-3">
+                  <span className="text-xs font-mono text-indigo-300 font-bold shrink-0 w-12 text-right">
+                    {formatDuration(currentTime)}
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={audioDuration || rec.duration || 1}
+                    step={0.1}
+                    value={currentTime}
+                    onChange={handleSeek}
+                    className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-400"
+                  />
+                  <span className="text-xs font-mono text-slate-400 shrink-0 w-12">
+                    {formatDuration(audioDuration || rec.duration)}
+                  </span>
+                </div>
+
+                <button
+                  onClick={handleClosePlayer}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+                  title="Close player"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        );
         })}
       </div>
 
