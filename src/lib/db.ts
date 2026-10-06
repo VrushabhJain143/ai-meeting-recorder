@@ -91,14 +91,72 @@ function getSqliteDb(): DatabaseSync {
       );
     `);
 
-    // Auto-seed existing test meetings if database is empty
+    // Auto-seed existing test meetings if database has fewer than 5 records
     try {
       const countRow = sqliteDb.prepare("SELECT count(*) as cnt FROM recordings").get() as any;
-      if (!countRow || countRow.cnt === 0) {
+      if (!countRow || countRow.cnt < 5) {
         const insertStmt = sqliteDb.prepare(`
-          INSERT INTO recordings (id, created_at, duration, audio_file_path, transcript, summary, status)
+          INSERT OR IGNORE INTO recordings (id, created_at, duration, audio_file_path, transcript, summary, status)
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `);
+
+        // Recording 1: 06 Oct 2026, 15:21
+        insertStmt.run(
+          "rec_1791280263597_rigms",
+          "2026-10-06T09:51:03.597Z",
+          22,
+          "rec_1788862633941_smjxt.webm",
+          "Client: Hello.\nSales Person: Good afternoon, sir. Calling regarding your inquiry.\nClient: Yes, please share the details.\nSales Person: We have shared the presentation with you.",
+          JSON.stringify({
+            pitch_score: 2.0,
+            pitch_percentage: 20,
+            overall_summary: "Short introductory client inquiry call regarding presentation details.",
+            key_discussion_points: [
+              "Client confirmed receipt of inquiry.",
+              "Sales representative confirmed sending presentation."
+            ]
+          }),
+          "completed"
+        );
+
+        // Recording 2: 06 Oct 2026, 15:17
+        insertStmt.run(
+          "rec_1791280038934_15z8c",
+          "2026-10-06T09:47:18.934Z",
+          38,
+          "rec_1788863273211_di3zj.webm",
+          "Sales Person: Hello ma'am, I am calling from the sales department to explain our project features and payment terms.\nClient: Okay, what are the payment milestones?\nSales Person: We offer flexible milestone-based plans with 20% down payment.",
+          JSON.stringify({
+            pitch_score: 8.5,
+            pitch_percentage: 85,
+            overall_summary: "Detailed project explanation call discussing features, milestone-based payment plans, and construction timeline.",
+            key_discussion_points: [
+              "Comprehensive explanation of project features and milestones.",
+              "Discussion of flexible 20% down payment scheme."
+            ]
+          }),
+          "completed"
+        );
+
+        // Recording 3: 06 Oct 2026, 15:07
+        insertStmt.run(
+          "rec_1791279445744_sxj5a",
+          "2026-10-06T09:37:25.744Z",
+          15,
+          "rec_1788862633941_smjxt.webm",
+          "Sales Person: Hello, can you hear me?\nClient: Yes, but I am in a meeting, call back later.\nSales Person: Sure sir, will call you later.",
+          JSON.stringify({
+            pitch_score: 1.0,
+            pitch_percentage: 10,
+            overall_summary: "Brief follow-up attempt; client requested call back later due to a meeting.",
+            key_discussion_points: [
+              "Call rescheduled upon client request."
+            ]
+          }),
+          "completed"
+        );
+
+        // Recording 4: 08 Sept 2026, 15:57
         insertStmt.run(
           "rec_1788863273211_di3zj",
           "2026-09-08T10:27:53.224Z",
@@ -118,6 +176,8 @@ function getSqliteDb(): DatabaseSync {
           }),
           "completed"
         );
+
+        // Recording 5: 08 Sept 2026, 15:47
         insertStmt.run(
           "rec_1788862633941_smjxt",
           "2026-09-08T10:17:13.947Z",
