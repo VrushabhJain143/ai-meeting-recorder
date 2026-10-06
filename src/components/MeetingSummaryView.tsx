@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Play,
   Pause,
@@ -57,6 +57,19 @@ export function MeetingSummaryView({
   }
 
   const audioUrl = `/api/audio/${recording.audio_file_path}`;
+
+  useEffect(() => {
+    if (!recording.duration || recording.duration === 0) {
+      const audio = new Audio(audioUrl);
+      audio.onloadedmetadata = () => {
+        if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
+          setDuration(Math.round(audio.duration));
+        }
+      };
+    } else {
+      setDuration(recording.duration);
+    }
+  }, [recording.id, recording.duration, audioUrl]);
 
   const togglePlay = () => {
     if (!audioElement) {

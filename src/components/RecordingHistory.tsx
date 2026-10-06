@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Calendar,
   Clock,
@@ -44,6 +44,24 @@ export function RecordingHistory({
   const [modalTranscript, setModalTranscript] = useState<{ id: string; text: string } | null>(null);
   const [deleteModalRecording, setDeleteModalRecording] = useState<Recording | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [resolvedDurations, setResolvedDurations] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    // For recordings where duration is 0, load audio metadata to resolve true duration
+    recordings.forEach((rec) => {
+      if ((!rec.duration || rec.duration === 0) && !resolvedDurations[rec.id]) {
+        const audio = new Audio(`/api/audio/${rec.audio_file_path}`);
+        audio.onloadedmetadata = () => {
+          if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
+            setResolvedDurations((prev) => ({
+              ...prev,
+              [rec.id]: Math.round(audio.duration),
+            }));
+          }
+        };
+      }
+    });
+  }, [recordings]);
 
   const formatDuration = (secs: number) => {
     if (!secs || isNaN(secs) || secs < 0) return "00:00";
@@ -177,6 +195,7 @@ export function RecordingHistory({
           const isThisPlaying = isCurrentActive && isPlaying;
           const isThisRetrying = retryingId === rec.id;
           const isThisDeleting = deletingId === rec.id;
+          const effectiveDuration = resolvedDurations[rec.id] || rec.duration;
 
           return (
             <div
@@ -214,7 +233,7 @@ export function RecordingHistory({
 
                   <div className="text-xs text-slate-500 flex items-center space-x-3">
                     <span className="font-medium text-slate-700">
-                      Duration: {formatDuration(rec.duration)}
+                      Duration: {formatDuration(effectiveDuration)}
                     </span>
                     <span>•</span>
                     <span className="font-mono text-[11px] text-slate-400">
@@ -227,7 +246,7 @@ export function RecordingHistory({
                 <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-start md:justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
                   {/* PLAY */}
                   <button
-                    onClick={() => handleTogglePlay(rec.id, rec.audio_file_path, rec.duration)}
+                    onClick={() => handleTogglePlay(rec.id, rec.audio_file_path, effectiveDuration)}
                     className={`inline-flex items-center px-3.5 py-1.5 text-xs font-bold rounded-xl transition-colors ${
                       isThisPlaying
                         ? "bg-amber-100 text-amber-900 hover:bg-amber-200"
@@ -366,14 +385,14 @@ export function RecordingHistory({
                   <input
                     type="range"
                     min={0}
-                    max={audioDuration || rec.duration || 1}
+                    max={audioDuration || effectiveDuration || 1}
                     step={0.1}
                     value={currentTime}
                     onChange={handleSeek}
                     className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-400"
                   />
                   <span className="text-xs font-mono text-slate-400 shrink-0 w-12">
-                    {formatDuration(audioDuration || rec.duration)}
+                    {formatDuration(audioDuration || effectiveDuration)}
                   </span>
                 </div>
 

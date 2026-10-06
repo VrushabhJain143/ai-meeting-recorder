@@ -44,6 +44,7 @@ export function AudioRecorder({
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
   const pausedTimeRef = useRef<number>(0);
+  const durationRef = useRef<number>(0);
 
   // Clean up on unmount
   useEffect(() => {
@@ -166,6 +167,7 @@ export function AudioRecorder({
       recorder.start(1000);
       setRecordState("recording");
       setDuration(0);
+      durationRef.current = 0;
 
       // Start visualizer
       startVisualizer(stream);
@@ -178,6 +180,7 @@ export function AudioRecorder({
       timerIntervalRef.current = setInterval(() => {
         const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
         setDuration(elapsed);
+        durationRef.current = elapsed;
       }, 250);
     } catch (err: any) {
       console.error("Microphone access error:", err);
@@ -217,6 +220,7 @@ export function AudioRecorder({
       timerIntervalRef.current = setInterval(() => {
         const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
         setDuration(elapsed);
+        durationRef.current = elapsed;
       }, 250);
     }
   };
@@ -255,16 +259,21 @@ export function AudioRecorder({
     }
 
     try {
+      // Calculate exact recorded duration
+      const finalDuration = durationRef.current > 0
+        ? durationRef.current
+        : Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000));
+
       // Create FormData
       const formData = new FormData();
       formData.append("audio", audioBlob, `meeting_${Date.now()}.${mimeType.includes("mp4") ? "mp4" : "webm"}`);
-      formData.append("duration", duration.toString());
+      formData.append("duration", finalDuration.toString());
 
       // Advance simulated step indicator as backend operates
       const stepTimer1 = setTimeout(() => setPipelineStep(2), 1500); // STT step
       const stepTimer2 = setTimeout(() => setPipelineStep(3), 3500); // Summary step
 
-      console.log(`Uploading ${audioBlob.size} bytes (${duration}s)...`);
+      console.log(`Uploading ${audioBlob.size} bytes (${finalDuration}s)...`);
       const response = await fetch("/api/recordings", {
         method: "POST",
         body: formData,
