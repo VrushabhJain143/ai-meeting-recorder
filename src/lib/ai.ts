@@ -3,6 +3,8 @@ import fs from "node:fs";
 export interface MeetingSummary {
   overall_summary: string;
   key_discussion_points: string[];
+  pitch_score?: number; // Rating out of 10 (e.g. 8.5)
+  pitch_percentage?: number; // Rating percentage (e.g. 85%)
   client_requirements?: string[];
   important_questions_concerns?: string[];
   action_items?: string[];
@@ -127,7 +129,7 @@ CRITICAL RULES:
 1. Always write all summary content in clean, professional English, even if the spoken conversation was in Hindi or Hinglish.
 2. NEVER invent, hallucinate, or assume details that were not discussed.
 3. If a section or point was not discussed in the meeting, write exactly "Not mentioned" for that section.
-4. Extract the overall meeting summary and the key discussion points in the JSON format requested below.
+4. Extract the overall meeting summary, key discussion points, and evaluate how well the project/topic was explained and the person's way of talking (clarity, communication style, engagement, persuasiveness). Provide a score out of 10 (e.g. 8.5) and a percentage (e.g. 85).
 
 TRANSCRIPT:
 ---
@@ -140,7 +142,9 @@ Return ONLY a valid JSON object with this exact schema (no additional markdown o
   "key_discussion_points": [
     "Discussion point 1",
     "Discussion point 2"
-  ]
+  ],
+  "pitch_score": 8.5,
+  "pitch_percentage": 85
 }
 If there are no key discussion points, return ["Not mentioned"].
 `;
@@ -184,10 +188,18 @@ If there are no key discussion points, return ["Not mentioned"].
       const cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
       const parsed = JSON.parse(cleaned) as MeetingSummary;
 
+      const rawScore = typeof parsed.pitch_score === "number" ? parsed.pitch_score : 8.5;
+      const pitchScore = Math.min(10, Math.max(1, Math.round(rawScore * 10) / 10));
+      const pitchPercentage = typeof parsed.pitch_percentage === "number"
+        ? Math.min(100, Math.max(10, Math.round(parsed.pitch_percentage)))
+        : Math.round(pitchScore * 10);
+
       // Validate and sanitize fields
       return {
         overall_summary: parsed.overall_summary || "Not mentioned",
         key_discussion_points: Array.isArray(parsed.key_discussion_points) && parsed.key_discussion_points.length > 0 ? parsed.key_discussion_points : ["Not mentioned"],
+        pitch_score: pitchScore,
+        pitch_percentage: pitchPercentage,
       };
     } catch (err: any) {
       lastError = err;
