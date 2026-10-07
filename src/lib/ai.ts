@@ -129,8 +129,11 @@ CRITICAL RULES:
 1. Always write all summary content in clean, professional English, even if the spoken conversation was in Hindi or Hinglish.
 2. NEVER invent, hallucinate, or assume details that were not discussed.
 3. If a section or point was not discussed in the meeting, write exactly "Not mentioned" for that section.
-4. Extract the overall meeting summary, key discussion points, and evaluate how well the project/topic was explained and the person's way of talking (clarity, communication style, engagement, persuasiveness). Provide a score out of 10 (e.g. 8.5) and a percentage (e.g. 85).
-
+4. SCORING & RATING RULES (Calculate pitch_score out of 10 and pitch_percentage):
+   - Rate ABOVE 5 (6.0 to 10.0 / 60% to 100%):
+     Give this if the salesperson properly explains the project, clearly communicates the pricing, and effectively covers key aspects such as amenities, project features, and the project's legacy/credibility.
+   - Rate BELOW 5 (1.0 to 4.9 / 10% to 49%):
+     Give this if the salesperson fails to explain the project properly, does not provide clear and accurate pricing/details, avoids questions, or lacks basic project knowledge.
 TRANSCRIPT:
 ---
 ${transcript}
