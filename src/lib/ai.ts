@@ -53,8 +53,8 @@ Instructions:
 5. Do NOT summarize or omit conversation turns. Return ONLY the transcribed dialogue.
 `;
 
-  // Fast production Gemini models for audio
-  const models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"];
+  // Production stable Gemini models for audio (with automatic cascading fallback)
+  const models = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash"];
   let lastError: any = null;
 
   for (const model of models) {
@@ -149,7 +149,8 @@ Return ONLY a valid JSON object with this exact schema (no additional markdown o
 If there are no key discussion points, return ["Not mentioned"].
 `;
 
-  const models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"];
+  // Production stable Gemini models for summarization (with automatic cascading fallback)
+  const models = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash"];
   let lastError: any = null;
 
   for (const model of models) {
